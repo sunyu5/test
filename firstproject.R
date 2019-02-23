@@ -41,3 +41,40 @@ offense<-summarise(group_by(crime,offense_description),total_number_of_crime=n()
 offense
 top_offense<-arrange(offense,desc(total_number_of_crime))[1:15,]
 top_offense
+
+
+# take sample which is year == 18 and sample size = 5000. 
+
+library("leaflet")
+library("data.table")
+library("sp")
+library("rgdal")
+library("KernSmooth")
+library("dplyr")
+library("ggplot2")
+crime<-read.csv("/Users/sunyu/Desktop/IE 6600/bostoncrime.csv",sep = ",",stringsAsFactors = FALSE)
+crime<- filter(crime,crime$long>-72)
+crime<-filter(crime,crime$lat>41)
+crime_s<- filter(crime,year==2018)
+set.seed(1)
+samp <- sample_n(crime_s, 5000)
+setnames(samp, tolower(colnames(samp)))
+samp<-as.data.table(samp, keep.rownames=FALSE, sorted=TRUE, value.name="value", na.rm=TRUE)
+samp <- samp[!is.na(long)]
+samp<- samp[!is.na(lat)]
+kde <- bkde2D(samp[ , list(long,lat)],
+              bandwidth=c(.0045, .0068), gridsize = c(100,100))
+CL <- contourLines(kde$x1 , kde$x2 , kde$fhat)
+LEVS <- as.factor(sapply(CL, `[[`, "level"))
+NLEV <- length(levels(LEVS))
+pgons <- lapply(1:length(CL), function(i)
+  Polygons(list(Polygon(cbind(CL[[i]]$x, CL[[i]]$y))), ID=i))
+spgons = SpatialPolygons(pgons)
+# plot desity
+leaflet(spgons) %>% addTiles() %>% 
+  addPolygons(color = heat.colors(NLEV, NULL)[LEVS])
+#plot circle on it
+leaflet(spgons) %>% addTiles() %>%
+  addPolygons(color = heat.colors(NLEV, NULL)[LEVS]) %>%
+  addCircles(lng = samp$long, lat = samp$lat,
+             radius = .01, opacity = .2, col = "blue")
