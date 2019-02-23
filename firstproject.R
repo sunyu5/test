@@ -32,17 +32,23 @@ top3
 ggplot(top3,aes(x=year,y=total_crime,fill=factor(district)))+
   geom_bar(stat="identity",position="dodge")+ylab("crime number")+
   xlab("year")
-year2015<-filter(crime,year=2015)
+year2015<-filter(crime,year==2015)
 unique(year2015$month)
 # so the data for year 2015 is not complete. and the data for 2019 also is not completed. this the reason why 
 # the total number of crime for 2015 and 2019 are much lower than other three year.
 
-offense<-summarise(group_by(crime,offense_description),total_number_of_crime=n())
-offense
-top_offense<-arrange(offense,desc(total_number_of_crime))[1:15,]
-top_offense
 
+crime_district$period[crime_district$hour >=8 & crime_district$hour<=16 ]<-"Day" 
+crime_district$period[crime_district$hour >16 & crime_district$hour<=22 ]<-"Night"
+crime_district$period[crime_district$hour >22 | crime_district$hour <8 ]<-"LateNight"
+Time<-summarise(group_by(crime_district,period),total_crime=n())
+p1<-ggplot( Time, aes(x=period, y=total_crime,group=1))+geom_line(color="blue")+theme_bw()+xlab("boston period") 
 
+top_district<-filter(crime_district,district %in% top_district_total$district)
+Time2<-summarise(group_by(top_district,period),total_crime=n())
+p2<-ggplot( Time2, aes(x=period, y=total_crime,group=1))+geom_line(color="red")+theme_bw()+xlab("top3 period")
+library(gridExtra)
+grid.arrange(p1, p2,ncol = 2)
 # take sample which is year == 18 and sample size = 5000. 
 
 library("leaflet")
