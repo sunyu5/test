@@ -42,13 +42,32 @@ crime_district$period[crime_district$hour >=8 & crime_district$hour<=16 ]<-"Day"
 crime_district$period[crime_district$hour >16 & crime_district$hour<=22 ]<-"Night"
 crime_district$period[crime_district$hour >22 | crime_district$hour <8 ]<-"LateNight"
 Time<-summarise(group_by(crime_district,period),total_crime=n())
+TimeAndCrime<-crime_district %>%
+  group_by(period,offense_code_group)%>%
+  summarise(total_crime=n()) %>%
+  arrange(period,desc(total_crime)) %>%
+  mutate(rank=row_number())
+top5<-filter(TimeAndCrime, rank <=5)
+ptime1<-ggplot(top5, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
+  xlab("oeriod")+ylab("crime code")+geom_tile()+ggtitle("boston time and crime")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
 p1<-ggplot( Time, aes(x=period, y=total_crime,group=1))+geom_line(color="blue")+theme_bw()+xlab("boston period") 
 
 top_district<-filter(crime_district,district %in% top_district_total$district)
+TimeAndCrime2<-top_district %>%
+  group_by(period,offense_code_group)%>%
+  summarise(total_crime=n()) %>%
+  arrange(period,desc(total_crime)) %>%
+  mutate(rank=row_number())
+top52<-filter(TimeAndCrime2, rank <=5)
+ptime2<-ggplot(top52, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
+  xlab("oeriod")+ylab("crime code")+geom_tile()+ggtitle("top3 district time and crime")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
 Time2<-summarise(group_by(top_district,period),total_crime=n())
 p2<-ggplot( Time2, aes(x=period, y=total_crime,group=1))+geom_line(color="red")+theme_bw()+xlab("top3 period")
 library(gridExtra)
 grid.arrange(p1, p2,ncol = 2)
+grid.arrange(ptime1, ptime2,ncol = 2)
 # take sample which is year == 18 and sample size = 5000. 
 
 library("leaflet")
