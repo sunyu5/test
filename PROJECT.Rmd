@@ -14,7 +14,7 @@ output:
 #3.Compared the crime group happening in each period in Boston and top 3 dangerous districts
 
 ```{r}
-crime<-read.csv("/Users/fudanvip/IE7280/project1/test/dataset/bostoncrime.csv",sep = ",",stringsAsFactors = FALSE)
+crime<-read.csv("/Users/sunyu/Desktop/IE 6600/bostoncrime.csv",sep = ",",stringsAsFactors = FALSE)
 library(ggplot2)
 library(dplyr)
 year_crime<-summarise(group_by(crime,year),total_number_of_crime_each_year=n())
@@ -101,9 +101,9 @@ TimeAndCrime<-crime_district %>%
   mutate(rank=row_number())
 top5<-filter(TimeAndCrime, rank <=5)
 ptime1<-ggplot(top5, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
-  xlab("oeriod")+ylab("crime code")+geom_tile()+ggtitle("boston time and crime")+
+  xlab("period")+ylab("crime code")+geom_tile()+ggtitle("boston time and crime")+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
-p1<-ggplot( Time, aes(x=period, y=total_crime,group=1))+geom_line(color="blue")+theme_bw()+xlab("boston period") 
+p1<-ggplot( Time, aes(x=period, y=total_crime,group=1))+geom_bar(stat = 'identity')+theme_bw()+xlab("boston period") 
 
 top_district<-filter(crime_district,district %in% top_district_total$district)
 TimeAndCrime2<-top_district %>%
@@ -113,10 +113,10 @@ TimeAndCrime2<-top_district %>%
   mutate(rank=row_number())
 top52<-filter(TimeAndCrime2, rank <=5)
 ptime2<-ggplot(top52, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
-  xlab("oeriod")+ylab("crime code")+geom_tile()+ggtitle("top3 district time and crime")+
+  xlab("period")+ylab("crime code")+geom_tile()+ggtitle("top3 district time and crime")+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
 Time2<-summarise(group_by(top_district,period),total_crime=n())
-p2<-ggplot( Time2, aes(x=period, y=total_crime,group=1))+geom_line(color="red")+theme_bw()+xlab("top3 period")
+p2<-ggplot( Time2, aes(x=period, y=total_crime,group=1))+geom_bar(stat = 'identity')+theme_bw()+xlab("top3 period")
 library(gridExtra)
 grid.arrange(p1, p2,ncol = 2)
 grid.arrange(ptime1, ptime2,ncol = 2)
