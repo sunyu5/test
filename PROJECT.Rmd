@@ -1,17 +1,9 @@
 ---
-title: "Project BOSTON"
-author: "YU SUN & LIYU QIANG"
-date: "2/24/2019"
-output:
-  html_document:
-    df_print: paged
+title: "NewAddProject1"
+output: html_document
 ---
-# first project 
-# Boston Crime
-# Goals
-#1. summary each year total crime number,total crime number in each district and find top 3 dangerous district in Boston. 
-#2.Seperate 24 hours to three 8-hours periods, 8am-16pm, 17pm-24am, 1am-7am. Compare the crime number happening in each periods in top 3 dangerous districts with the crime number distribution in Boston 
-#3.Compared the crime group happening in each period in Boston and top 3 dangerous districts
+## R Markdown
+
 
 ```{r}
 crime<-read.csv("/Users/sunyu/Desktop/IE 6600/bostoncrime.csv",sep = ",",stringsAsFactors = FALSE)
@@ -19,105 +11,231 @@ library(ggplot2)
 library(dplyr)
 year_crime<-summarise(group_by(crime,year),total_number_of_crime_each_year=n())
 year_crime
-ggplot(crime, aes(x = year)) +geom_histogram(binwidth = 1, color = "grey30", fill = "grey")+theme_bw()+ylab("total crime number")
 any(crime$district=="")
 crime_district<-filter(crime, district != "")
-district<-summarise(group_by(crime_district,district),total_number_of_crime=n())
+library(janitor)
+duplicated <- get_dupes(crime, incident_number, year, day_of_week)
+danger<-c("Larceny", "Auto Theft","Aggravated Assault","Harassment","Simple Assault","Vandalism", "Robbery","Arson",
+          "Property Related Damage","Recovered Stolen Property","Criminal Harassment","Other Burglary","HOME INVASION","Explosives",
+          "Burglary - No Property Taken","Residential Burglary", "Larceny From Motor Vehicle")
+unique(crime_district$offense_code_group[crime_district$shooting=="Y"])
+
+crime_district$catigory[crime_district$offense_code_group %in% danger]<- "danger"
+crime_district$catigory[!(crime_district$offense_code_group %in% danger)]<- "not danger"
+danger_crime<-filter(crime_district, offense_code_group %in% danger)
+district<-summarise(group_by(danger_crime,district),total_number_of_danger_crime=length(unique(incident_number)))
 district
-top_district_total<-arrange(district,desc(total_number_of_crime))[1:3,]
+top_district_total<-arrange(district,desc(total_number_of_danger_crime))[1:4,]
 top_district_total
 top_district_total$district
+danger_duo<-get_dupes(danger_crime, incident_number, year, day_of_week)
+
 library(magrittr)
-district_year<-crime_district %>%
+district_year<-danger_crime %>%
   group_by(year,district)%>%
-  summarise(total_crime=n()) %>%
+  summarise(total_crime=length(unique(incident_number))) %>%
   arrange(year,desc(total_crime)) %>%
   mutate(rank=row_number())
 district_year
-top3<-filter(district_year, rank <=3)
-top3
-```
-## the top3 high crime district in each year are the same as the top3 total high crime district from 2015-2019
-```{r}
-ggplot(top3,aes(x=year,y=total_crime,fill=factor(district)))+
-  geom_bar(stat="identity",position="dodge")+ylab("crime number")+
+top4<-filter(district_year, rank <=4)
+top4
+# compare each year top4 dangerous district crime number
+ggplot(top4,aes(x=year,y=total_crime,fill=factor(district)))+
+  geom_bar(stat="identity",position="dodge")+ylab("danger crime number")+
   xlab("year")
-year2015<-filter(crime,year==2015)
-unique(year2015$month)
-```
-# so the data for year 2015 is not complete. and the data for 2019 also is not completed. this the reason why 
-# the total number of crime for 2015 and 2019 are much lower than other three year.
-# we only have the code in district part. We do not know where the district is since we lack this information. Thus, we decide to use data in 2018 year to estimate where are top 3 dangerous district 
-# take sample which is year == 18 and sample size = 5000. 
-# we estimate the top 3 dangerous district are the part highlighted in yellow in the map.
-```{r}
-library("leaflet")
-library("data.table")
-library("sp")
-library("rgdal")
-library("KernSmooth")
-library("dplyr")
-library("ggplot2")
-crime<-read.csv("/Users/sunyu/Desktop/IE 6600/bostoncrime.csv",sep = ",",stringsAsFactors = FALSE)
-crime<- filter(crime,crime$long>-72)
-crime<-filter(crime,crime$lat>41)
-crime_s<- filter(crime,year==2018)
-set.seed(1)
-samp <- sample_n(crime_s, 5000)
-setnames(samp, tolower(colnames(samp)))
-samp<-as.data.table(samp, keep.rownames=FALSE, sorted=TRUE, value.name="value", na.rm=TRUE)
-samp <- samp[!is.na(long)]
-samp<- samp[!is.na(lat)]
-kde <- bkde2D(samp[ , list(long,lat)],
-              bandwidth=c(.0045, .0068), gridsize = c(100,100))
-CL <- contourLines(kde$x1 , kde$x2 , kde$fhat)
-LEVS <- as.factor(sapply(CL, `[[`, "level"))
-NLEV <- length(levels(LEVS))
-pgons <- lapply(1:length(CL), function(i)
-  Polygons(list(Polygon(cbind(CL[[i]]$x, CL[[i]]$y))), ID=i))
-spgons = SpatialPolygons(pgons)
-# plot desity
-leaflet(spgons) %>% addTiles() %>% 
-  addPolygons(color = heat.colors(NLEV, NULL)[LEVS])
-#plot circle on it
-leaflet(spgons) %>% addTiles() %>%
-  addPolygons(color = heat.colors(NLEV, NULL)[LEVS]) %>%
-  addCircles(lng = samp$long, lat = samp$lat,
-             radius = .01, opacity = .2, col = "blue")
-```
-
-# Period analysis 
-# Vehicle Accident Response and Medical Assistance both are in Top 5 most happening crimes in each period for boston and Top 3 dangerous district
-# We still can see the top 5 most happening crimes in 3 most dangerous district are different from Boston during each period. In top 3 dangerous district, the assault crimes are more common during night and late night.
-```{r}
-crime_district$period[crime_district$hour >=8 & crime_district$hour<=16 ]<-"Day" 
-crime_district$period[crime_district$hour >16 | crime_district$hour ==0 ]<-"Night"
-crime_district$period[crime_district$hour >=1 & crime_district$hour <8 ]<-"LateNight"
-Time<-summarise(group_by(crime_district,period),total_crime=n())
-TimeAndCrime<-crime_district %>%
-  group_by(period,offense_code_group)%>%
-  summarise(total_crime=n()) %>%
-  arrange(period,desc(total_crime)) %>%
+# 2015 and 2019 data not completed change to do as month
+district_month<-danger_crime %>%
+  group_by(month,district)%>%
+  summarise(total_crime=length(unique(incident_number))) %>%
+  arrange(month,desc(total_crime)) %>%
   mutate(rank=row_number())
-top5<-filter(TimeAndCrime, rank <=5)
-ptime1<-ggplot(top5, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
-  xlab("period")+ylab("crime code")+geom_tile()+ggtitle("boston time and crime")+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
-p1<-ggplot( Time, aes(x=period, y=total_crime,group=1))+geom_bar(stat = 'identity')+theme_bw()+xlab("boston period") 
+district_month
+top4month<-filter(district_month, rank <=4)
+top4month
+ggplot(top4month,aes(x=month,y=total_crime,fill=factor(district)))+
+  geom_bar(stat="identity",position="dodge")+scale_x_continuous(breaks = seq(1,12,1))+ylab("danger crime number")+
+  xlab("month")
+#compare each district danger crime happening in each year
+#top4 danger districts crime happening number are higher
+ggplot(unique(danger_crime, by= incident_number))+
+  aes(x=month, color=district)+
+  geom_line(stat="count")+
+  scale_x_continuous(breaks = seq(1,12,1))+
+  scale_y_continuous(breaks = seq(500,5000,500))+
+  labs(title="Frequency of Incidents by Disctrict depending on Month", x="Districts", y="Number of Incidents")
 
-top_district<-filter(crime_district,district %in% top_district_total$district)
+#danger crime hapening rate in total
+#delate repeated incident number in danger_crime
+# in this part we did not concider crime case whether repeated
+# the top 4 districts having high rate of dangerous crime is different frome top 4 district haveing high dangerous crime number
+crime_clean<-crime_district%>%
+  group_by(incident_number,district)%>%
+  distinct(catigory)
+counting<-crime_clean %>% group_by(district,catigory) %>% tally()
+ggplot(crime_clean, aes(x = factor(district), fill=factor(catigory)))+geom_bar()+ylab("crime count")+xlab("district")+ggtitle("bar filled by crime whether is dangerous")
+
+count_danger<-filter(counting,catigory == "danger")
+count_not_danger<-filter(counting,catigory == "not danger")
+count_danger$danger_rate <- count_danger$n/(count_danger$n+count_not_danger$n)
+ggplot(count_danger, aes(x = reorder(district, danger_rate), y = danger_rate)) + 
+  geom_point(size = 12, stat = "identity", color = "yellow") + 
+  geom_text(aes(label = round(danger_rate,2), fontface = "bold"), color = "black", size = 2) + 
+  theme_minimal(base_size = 20) + 
+  xlab("District") + ylab("danger crime rate") + 
+  ggtitle("danger crime rate on district") +
+  scale_y_continuous(limits=c(0,0.6))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+Dangerous Crime category
+```{r}
+unique(top4$district)
+dd1<-c("D4","A1","D14","C6")
+dd2<-unique(top4$district)
+top_district<-filter(danger_crime,district %in% dd1)
 TimeAndCrime2<-top_district %>%
-  group_by(period,offense_code_group)%>%
+  group_by(hour,offense_code_group)%>%
   summarise(total_crime=n()) %>%
-  arrange(period,desc(total_crime)) %>%
+  arrange(hour,desc(total_crime)) %>%
   mutate(rank=row_number())
 top52<-filter(TimeAndCrime2, rank <=5)
-ptime2<-ggplot(top52, aes(x=factor(period), y=factor(offense_code_group), fill=total_crime)) + 
-  xlab("period")+ylab("crime code")+geom_tile()+ggtitle("top3 district time and crime")+
+ptime2<-ggplot(top52, aes(x=factor(hour), y=factor(offense_code_group), fill=total_crime)) + 
+  xlab("hour")+ylab("crime code")+geom_tile()+ggtitle("dangerous district hour crime (according to rate)")+
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
-Time2<-summarise(group_by(top_district,period),total_crime=n())
-p2<-ggplot( Time2, aes(x=period, y=total_crime,group=1))+geom_bar(stat = 'identity')+theme_bw()+xlab("top3 period")
+
+top_district2<-filter(danger_crime,district %in% dd2)
+TimeAndCrime3<-top_district2 %>%
+  group_by(hour,offense_code_group)%>%
+  summarise(total_crime=n()) %>%
+  arrange(hour,desc(total_crime)) %>%
+  mutate(rank=row_number())
+top521<-filter(TimeAndCrime3, rank <=5)
+ptime21<-ggplot(top521, aes(x=factor(hour), y=factor(offense_code_group), fill=total_crime)) + 
+  xlab("hour")+ylab("crime code")+geom_tile()+ggtitle("dangerous district hour crime (according to number)")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5))
+
 library(gridExtra)
-grid.arrange(p1, p2,ncol = 2)
-grid.arrange(ptime1, ptime2,ncol = 2)
+grid.arrange(ptime2, ptime21,nrow = 2)
+
+#check shooting in dangerous crime
+shooting<-danger_crime%>%
+  group_by(incident_number,district)%>%
+  distinct(shooting)
+shooting$shooting[shooting$shooting==""]<-"N"
+counting_shooting<-shooting %>% group_by(district,shooting) %>% tally()
+shooted<-filter(counting_shooting,shooting=="Y")
+#sum(shooted$n)
+ggplot(shooted, aes(x = reorder(district, n), y = n)) + 
+  geom_point(size = 2, stat = "identity", color = "red") + 
+  theme_minimal(base_size = 20) + 
+  xlab("District") + ylab("shooting count") + 
+  ggtitle("shooting in dangerous crimes") +
+  scale_y_continuous(limits=c(0,210))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+
+# plot shooting point on the map 
+```{r}
+library("sp")
+library("rgdal")
+library("dplyr")
+library("ggplot2")
+library("leaflet")
+#make sure that long and lat in boston area,check NA in long and lat,
+sum(is.na(danger_crime$long))
+crime_danger_plot<- filter(danger_crime,danger_crime$long>-72)
+crime_danger_plot<-filter(danger_crime,danger_crime$lat>41)
+sum(is.na(crime_danger_plot$long))
+crime_danger_plot
+# we take shooting == Y in dangerous crime
+crime_danger_shoot<- filter(danger_crime,danger_crime$shooting == "Y")%>%
+  group_by(incident_number,district,lat,long)%>%
+  distinct(shooting)
+# import boston neighborhood 
+bos <- readOGR("/Users/sunyu/Downloads/Boston_Neighborhoods",
+   GDAL1_integer64_policy = TRUE) 
+# plot shooting on the map
+leaflet(bos) %>%addTiles() %>%
+  addPolygons(color = "#444444", weight = 1, smoothFactor = 0.5,
+    opacity = 0.5, fillOpacity = 0.5,
+    highlightOptions = highlightOptions(color = "white", weight = 3,
+      bringToFront = TRUE))%>%
+  addCircles(lng = crime_danger_shoot$long, lat = crime_danger_shoot$lat,
+             radius = .01, opacity = .5, col = "#00ff00")%>%
+  addMarkers(
+    lng = -71.0857, lat = 42.3285,
+    label = "Roburxy B2 #shooting:185",
+    labelOptions = labelOptions(noHide = T))%>%
+   addMarkers(
+    lng = -71.1506, lat = 42.3493,
+    label = "Allston D14 #shooting:8",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.1243, lat = 42.2565,
+    label = "Hyde Park E18 #shooting:24",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.0591, lat = 42.2981,
+    label = "Dorchester C11 #shooting:109",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.0549, lat = 42.3412,
+    label = "South Boston C6 #shooting:22",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.0603, lat = 42.3618,
+    label = "Down Town&Charlestown A1&A15 #shooting:13",
+    labelOptions = labelOptions(noHide = T))%>%
+   addMarkers(
+    lng = -71.0692, lat = 42.3396,
+    label = "Back Bay/South End/ Fenway D4 #shooting:29",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.0916, lat = 42.2848,
+    label = "Mattapan/ North Dorchester B3 #shooting:124",
+    labelOptions = labelOptions(noHide = T))%>%
+   addMarkers(
+    lng = -71.1484, lat = 42.2868,
+    label = "West Roxbury/ Roslindale E5 #shooting:9",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.1046, lat = 42.3097,
+    label = "Jamaica Plain E13 #shooting:48",
+    labelOptions = labelOptions(noHide = T))%>%
+  addMarkers(
+    lng = -71.0387, lat = 42.3712,
+    label = "East Boston A7 #shooting:9",
+    labelOptions = labelOptions(noHide = T))
+
+#dangerous street from dangerous crime.
+library("RColorBrewer") 
+library("tibble")
+library("wordcloud")
+#pal = brewer.pal(9,"Blues")
+street_name <- as.tibble(table(danger_crime$street))
+colnames(street_name) <- c("Street_Name", "Count")
+wordcloud(street_name$Street_Name, street_name$Count, min.freq = 200, random.order = F, random.color = F, colors =c("black", "cornflowerblue", "darkred"), scale = c(2,.3))
+# each area top 3 dangerous street based on danger_crime
+streetd = data.frame(with(danger_crime,table(street, district)))
+topstreet = data.frame()
+for (district_name in unique(streetd$district)) {
+  substreetd = subset(streetd, district==district_name)
+  tmp = substreetd[with(substreetd, order(Freq, decreasing=T))[1:3], ]
+  topstreet = rbind(topstreet, tmp)
+}
+
+topstreet$street = as.factor(topstreet$street)
+topstreet$Rank = rep(3:1, 6)
+
+ggplot(topstreet, aes(x= Rank, y = Freq, label=street, fill = Freq))+
+  geom_text(aes(label=street), size=1.0) +
+  ylim(0,5000)+
+geom_bar(stat='identity')+
+geom_text(size=2, hjust=0, vjust=0)+
+facet_wrap(~district, nrow=12)+
+  theme_bw(base_size=5)+
+  coord_flip()
+```
+
